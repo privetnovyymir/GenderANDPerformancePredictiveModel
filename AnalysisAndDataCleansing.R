@@ -37,4 +37,25 @@ sum(is.factor(train_without_chars))
 is.character(train_without_chars)
 str(train_without_chars)
 train_nums <- train %>% select_if(is.numeric)
-head(train_nums)
+head(train_nums[, c(1:20)]) # relevant chars cleaned but NAs pendent
+sum(is.na(train_nums))
+train_nums_without_nas <- map(train_nums, ~sum(is.na(.)))
+class(train_nums_without_nas)
+sum(is.na(train_nums_without_nas)) # OK ==> NAs removed, ==> class == list
+train <- train %>% select(-one_of(names(train_nums_without_nas[train_nums_without_nas>16000])))
+class(train)
+
+# Now we are going to proceed to MAP and REDUCE to set valuable variables for modeling:
+mybinaryFunction <- function(x){ifelse(length(unique(x))>2,FALSE,TRUE)}
+  mybinaryFunction(train$is_female) # OK, TRUE
+  mybinaryFunction(train$train_id) # OK, FALSE
+binaries <- map(train_nums, ~mybinaryFunction(.))
+  class(binaries)
+sum_binaries <- sum(binaries == TRUE)
+is_log <- train %>% select_if(is.logical)
+sum(is.na(is_log))-dim(is_log)[1]*dim(is_log)[2]
+train <- train %>% select(-one_of(names(is_log)))
+str(train) # Done
+
+#-----------------------------#
+
