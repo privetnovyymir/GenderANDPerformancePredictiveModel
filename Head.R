@@ -32,8 +32,8 @@ View(train)
 dir <- "C:/Minsait/"
 filename <- "train.xlsx"
 url <- paste0(dir, filename)
-train <- read_excel(url)
-train <- read.csv(url)
+#train <- read_excel(url)
+#train <- read.csv(url)
 # Training file & insights
 dir <- "C:/Minsait/"
 filename <- "train.csv"
