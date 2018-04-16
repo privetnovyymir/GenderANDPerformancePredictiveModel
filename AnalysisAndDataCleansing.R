@@ -58,4 +58,6 @@ train <- train %>% select(-one_of(names(is_log)))
 str(train) # Done
 
 #-----------------------------#
+length(setdiff(dictionary$"Column Name", names(train))) # cols difference between train and dictionary
+# ussing summary per certain cols, we would have all relevant statistical data we could need
 
