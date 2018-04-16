@@ -99,3 +99,93 @@ xgbcv.ROC <- roc(response = y,
 # Area under the curve: 1?
 xgbcv.ROC$auc
 
+#---------------------------------------   TRAINING  ----------------------------------------#
+# Set random seed, for reproducibility 
+set.seed(1234)
+# Set expand.grid
+xgb.grid <- expand.grid(nrounds = c(bestiteration, 100), # Set the number of iterations from the xgb.cv and providing another higher value for comparison
+                        eta = seq(from=0.2, to=1, by=0.2), # shrinkage
+                        max_depth = c(6,8),
+                        colsample_bytree = c(0.2, 0.8), # variables per tree. default 1
+                        gamma = c(0,1), # default 0
+                        min_child_weight = c(1,10),
+                        subsample=1) # default 1
+# Set training control
+cntrl <- trainControl(method = "repeatedcv",   # 5 fold cross validation
+                      number = 2,        # do 2 repetitions of cv
+                      repeats = 2, # repeated 5 times
+                      summaryFunction=twoClassSummary,   # built-in function to calculate the area under the ROC curve, to compare models
+                      classProbs = TRUE,
+                      allowParallel = TRUE,
+                      verboseIter = FALSE)
+# Train model with gbtree and params above using caret 
+tuningmodel <- train(x=training2[,-9],
+                     y=training2$is_female, # target vector should be non-numeric factors to identify our task as classification, not regression.
+                     method="xgbTree",
+                     metric="ROC",
+                     trControl=cntrl,# specify cross validation 
+                     tuneGrid=xgb.grid, # Which hyperparameters we'll test
+                     maximize = TRUE) 
+# View the model results
+tuningmodel$bestTune
+ggplot(tuningmodel$results, aes(x = as.factor(eta), y = max_depth, size = ROC, color = ROC)) + 
+  geom_point() + 
+  ggtitle("Scatter plot of the AUC against max_depth and eta") +
+  theme_bw() + 
+  scale_size_continuous(guide = "none") +
+  scale_colour_gradient(low = "black", high="yellow")
+plot(tuningmodel)
+
+#------------------------------  TRAINING BEST MODEL  ------------------------------------#
+# Set expand.grid
+xgb.grid <- expand.grid(nrounds = 100, # Set the maximum number of iterations from the xgb.cv
+                        eta = 0.2, # shrinkage
+                        max_depth = 8,
+                        colsample_bytree = 0.8, # variables per tree. default 1
+                        gamma = 0, # default 0
+                        min_child_weight = 1,
+                        subsample=1) # default 1
+bst <- train(x=training2[,-9],
+             y=training2$is_female, # Target vector should be non-numeric factors to identify our task as classification, not regression.
+             method="xgbTree",
+             metric="ROC",
+             trControl=cntrl,# Specify cross validation 
+             tuneGrid=xgb.grid,
+             maximize = TRUE) # Which hyperparameters we'll test
+# View the model results
+bst$bestTune
+
+### xgboostModel Predictions and Performance
+# Make predictions using the test data set
+xgb.pred <- ifelse(predict(bst,valid, type = "raw")== "two", 1, 0)
+
+#Look at the confusion matrix  
+confusionMatrix(xgb.pred,valid$is_female)
+
+#Draw the ROC curve using the pRoc package
+xgb.probs <- predict(bst,valid,type="prob")
+xgb.ROC <- roc(predictor=xgb.probs$one,
+               response=valid$is_female)
+xgb.ROC$auc
+
+# Area under the curve
+plot(xgb.ROC,main="xgboost ROC")
+
+# Variable Importance
+varimpxgb <- varImp(bst)$importance %>% 
+  mutate(Column.Name=row.names(.)) %>%
+  arrange(-Overall)
+ddvarimp <- merge(dd2,varimpxgb,by = "Column.Name")  
+ddvarimp[1:10,]
+
+#--------------------------------------  PREDICTIONS  -----------------------------#
+# Create a prediction file 
+predicttest <- ifelse(predict(bst,test, type = "raw")== "two", 1, 0)
+# Create Kaggle Submission File Female is 2, male is 1, while in our transformed data, is_female=1 for female and is_female=0 for male.
+my_solution <- data.frame(id,predicttest)
+names(my_solution) <- c("test_id","is_female")
+# Check the number of rows in the solution file is 27285
+nrow(my_solution)
+
+# Write solution to file submissionFile1.csv
+write.csv(my_solution, file = "testFinal.csv", quote=F, row.names=F)
